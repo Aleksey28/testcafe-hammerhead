@@ -16,18 +16,13 @@ export default class SandboxBase extends EventEmitter {
 
     // NOTE: The sandbox is deactivated when its window is removed from the DOM.
     isDeactivated (): boolean {
-        try {
-            // NOTE: In IE11, a situation when the document is not active may occur.
-            // eslint-disable-next-line no-unused-expressions
-            this.document.body;
+        // eslint-disable-next-line no-unused-expressions
+        this.document.body;
 
-            if (this.window[INTERNAL_PROPS.hammerhead]) {
-                const frameElement = getFrameElement(this.window);
+        if (this.window[INTERNAL_PROPS.hammerhead]) {
+            const frameElement = getFrameElement(this.window);
 
-                return !!frameElement && !isElementInDocument(frameElement, findDocument(frameElement));
-            }
-        }
-        catch (e) { // eslint-disable-line no-empty
+            return !!frameElement && !isElementInDocument(frameElement, findDocument(frameElement));
         }
 
         return true;

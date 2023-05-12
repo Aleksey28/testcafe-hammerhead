@@ -21,9 +21,7 @@ import {
 import {
     isFirefox,
     isChrome,
-    isIE,
     isAndroid,
-    isMSEdge,
     version as browserVersion,
 } from '../../utils/browser';
 
@@ -58,7 +56,6 @@ import {
     overrideFunction,
     overrideConstructor,
 } from '../../utils/overriding';
-import { emptyActionAttrFallbacksToTheLocation } from '../../utils/feature-detection';
 import { HASH_RE, isValidUrl } from '../../../utils/url';
 import UploadSandbox from '../upload';
 import { getAnchorProperty, setAnchorProperty } from '../code-instrumentation/properties/anchor';
@@ -310,9 +307,7 @@ export default class WindowSandbox extends SandboxBase {
         if (window.Blob)
             this.overrideBlobInWindow();
 
-        // NOTE: non-IE11 case. window.File in IE11 is not constructable.
-        if (nativeMethods.File)
-            this.overrideFileInWindow();
+        this.overrideFileInWindow();
 
         if (window.EventSource)
             this.overrideEventSourceInWindow();
@@ -417,7 +412,7 @@ export default class WindowSandbox extends SandboxBase {
 
         this.overrideAttrDescriptorsInElement('httpEquiv', [window.HTMLMetaElement]);
 
-        // NOTE: Some browsers (for example, Edge, Internet Explorer 11, Safari) don't support the 'integrity' property.
+        // NOTE: Some browsers (for example Safari) don't support the 'integrity' property.
         if (nativeMethods.scriptIntegrityGetter && nativeMethods.linkIntegrityGetter) {
             this.overrideAttrDescriptorsInElement('integrity', [window.HTMLScriptElement]);
             this.overrideAttrDescriptorsInElement('integrity', [window.HTMLLinkElement]);
@@ -491,8 +486,8 @@ export default class WindowSandbox extends SandboxBase {
     }
 
     private reattachHandler (eventName: string): void {
-        const nativeAddEventListener    = Listeners.getNativeAddEventListener(this.window);
-        const nativeRemoveEventListener = Listeners.getNativeRemoveEventListener(this.window);
+        const nativeAddEventListener    = nativeMethods.addEventListener;
+        const nativeRemoveEventListener = nativeMethods.removeEventListener;
 
         nativeRemoveEventListener.call(this.window, eventName, this);
         nativeAddEventListener.call(this.window, eventName, this);
@@ -512,10 +507,9 @@ export default class WindowSandbox extends SandboxBase {
 
     private overrideEventPropDescriptor (eventName: string, nativePropSetter): void {
         const windowSandbox   = this;
-        const eventPropsOwner = nativeMethods.isEventPropsLocatedInProto ? this.window.Window.prototype : this.window;
 
         //@ts-ignore
-        overrideDescriptor(eventPropsOwner, 'on' + eventName, {
+        overrideDescriptor(this.window, 'on' + eventName, {
             getter: null,
             setter: handler => {
                 nativePropSetter.call(windowSandbox.window, handler);
@@ -649,10 +643,7 @@ export default class WindowSandbox extends SandboxBase {
             if (WindowSandbox.isProcessableBlob(array, opts))
                 array = [processScript(array.join(''), true, false, convertToProxyUrl, void 0, settings.nativeAutomation, WindowSandbox.getBlobProcessingSettings())];
 
-            // NOTE: IE11 throws an error when the second parameter of the Blob function is undefined (GH-44)
-            // If the overridden function is called with one parameter, we need to call the original function
-            // with one parameter as well.
-            return arguments.length === 1 ? new nativeMethods.Blob(array) : new nativeMethods.Blob(array, opts);
+            return new nativeMethods.Blob(array, opts);
         });
     }
 
@@ -787,9 +778,9 @@ export default class WindowSandbox extends SandboxBase {
 
             if (typeof url === 'string') {
                 if (WindowSandbox.isSecureOrigin(url)) {
-                    // NOTE: We cannot create an instance of the DOMException in the Android 6.0 and in the Edge 17 browsers.
+                    // NOTE: We cannot create an instance of the DOMException in the Android 6.0 browser.
                     // The 'TypeError: Illegal constructor' error is raised if we try to call the constructor.
-                    return Promise.reject(isAndroid || isMSEdge && browserVersion >= 17
+                    return Promise.reject(isAndroid && browserVersion >= 17
                         ? new Error('Only secure origins are allowed.')
                         : new DOMException('Only secure origins are allowed.', 'SecurityError'));
                 }
@@ -955,7 +946,7 @@ export default class WindowSandbox extends SandboxBase {
         overrideFunction(this.window.history, name, function (this: History, ...args) {
             const url = args[2];
 
-            if (args.length > 2 && (url !== null && (isIE || url !== void 0)))
+            if (args.length > 2 && (url !== null && url !== void 0))
                 args[2] = getProxyUrl(url);
 
             return nativeMethod.apply(this, args);
@@ -1087,7 +1078,7 @@ export default class WindowSandbox extends SandboxBase {
             getter: function () {
                 const length = nativeMethods.htmlCollectionLengthGetter.call(this);
 
-                if (ShadowUI.isShadowContainerCollection(this, length))
+                if (ShadowUI.isShadowContainerCollection(this))
                     return windowSandbox.shadowUI.getShadowUICollectionLength(this, length);
 
                 return length;
@@ -1168,7 +1159,7 @@ export default class WindowSandbox extends SandboxBase {
             },
             setter: function (this: HTMLInputElement, value) { // eslint-disable-line consistent-return
                 if (this.type.toLowerCase() === 'file')
-                    return windowSandbox.uploadSandbox.setUploadElementValue(this, value);
+                    return;
 
                 nativeMethods.inputValueSetter.call(this, value);
 
@@ -1252,7 +1243,7 @@ export default class WindowSandbox extends SandboxBase {
         const attrValue       = nativeMethods.getAttribute.call(el, attr);
         const currentDocument = el.ownerDocument || document;
 
-        if (attrValue === '' || attrValue === null && attr === 'action' && emptyActionAttrFallbacksToTheLocation)
+        if (attrValue === '')
             return urlResolver.resolve('', currentDocument);
 
         else if (attrValue === null)

@@ -1,12 +1,8 @@
 import SandboxBase from './base';
 import nativeMethods from './native-methods';
 import { processScript } from '../../processing/script';
-import { isIE, version as browserVersion } from '../utils/browser';
 import { overrideFunction } from '../utils/overriding';
 
-// NOTE: When you call the focus and blur function for some elements in IE, the event handlers  must be raised
-// asynchronously, but before executing functions that are called by using the window.setTimeout function. So,
-// we need to raise the handlers with a timeout, but do it before calling other asynchronous functions.
 export default class TimersSandbox extends SandboxBase {
     timeouts: any[];
     deferredFunctions: any[];
@@ -22,25 +18,8 @@ export default class TimersSandbox extends SandboxBase {
 
     _wrapTimeoutFunctionsArguments (args) {
         const isScriptFirstArg = typeof args[0] === 'string';
-        const func             = !isScriptFirstArg ? args[0] : null;
-        const script           = isScriptFirstArg ? processScript(args[0], false) : null;
 
-        if (isIE && browserVersion < 12) {
-            const timersSandbox = this;
-            const fnToRun       = isScriptFirstArg ? () => {
-                // NOTE: We are switching eval to the global context with this assignment.
-                // Unlike eval, the setTimeout/setInterval functions always work in the global context.
-                const ev = this.window.eval;
-
-                return ev(script);
-            } : func;
-
-            args[0] = function () {
-                return timersSandbox._callDeferredFunction(fnToRun, arguments);
-            };
-        }
-        else if (isScriptFirstArg)
-            args[0] = script;
+        args[0] = isScriptFirstArg ? processScript(args[0], false) : null;
 
         return args;
     }

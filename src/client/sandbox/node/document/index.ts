@@ -3,7 +3,6 @@ import IframeSandbox from '../../iframe';
 import nativeMethods from '../../native-methods';
 import domProcessor from '../../../dom-processor';
 import settings from '../../../settings';
-import { isIE } from '../../../utils/browser';
 
 import {
     isIframeWithoutSrc,
@@ -76,20 +75,6 @@ export default class DocumentSandbox extends SandboxBase {
     }
 
     private static _shouldEmitDocumentCleanedEvents (doc) {
-        if (isIE) {
-            if (doc.readyState !== 'loading')
-                return true;
-
-            const window = doc.defaultView;
-
-            if (window[INTERNAL_PROPS.documentWasCleaned])
-                return false;
-
-            const iframe = window && getFrameElement(window);
-
-            return iframe && isIframeWithoutSrc(iframe);
-        }
-
         return doc.readyState !== 'loading' && doc.readyState !== 'uninitialized';
     }
 
@@ -106,17 +91,6 @@ export default class DocumentSandbox extends SandboxBase {
             this._nodeSandbox.processNodes(null, this.document);
 
         return result;
-    }
-
-    private static _definePropertyDescriptor (owner, childOfOwner, prop, overriddenDescriptor) {
-        // NOTE: The 'URL', 'domain' and 'referrer' properties are non configurable in IE and Edge
-        if (!overriddenDescriptor.configurable) {
-            // NOTE: property doesn't redefined yet
-            if (!childOfOwner.hasOwnProperty(prop)) // eslint-disable-line no-prototype-builtins
-                nativeMethods.objectDefineProperty(childOfOwner, prop, overriddenDescriptor);
-        }
-        else
-            nativeMethods.objectDefineProperty(owner, prop, overriddenDescriptor);
     }
 
     iframeDocumentOpen (window, document, args) {
@@ -176,9 +150,6 @@ export default class DocumentSandbox extends SandboxBase {
             if (!isUninitializedIframe)
                 documentSandbox._beforeDocumentCleaned();
 
-            if (isIE)
-                return window.parent[INTERNAL_PROPS.hammerhead].sandbox.node.doc.iframeDocumentOpen(window, this, args);
-
             const result = nativeMethods.documentOpen.apply(this, args);
 
             // NOTE: Chrome does not remove the "%hammerhead%" property from window
@@ -209,15 +180,7 @@ export default class DocumentSandbox extends SandboxBase {
         const documentSandbox = this;
 
         function close (this: Document, ...args: []) {
-            // NOTE: IE11 raise the "load" event only when the document.close method is called. We need to
-            // restore the overridden document.open and document.write methods before Hammerhead injection, if the
-            // window is not initialized.
-            if (isIE && !IframeSandbox.isWindowInited(window))
-                nativeMethods.restoreDocumentMeths(window, this);
-
-            // NOTE: IE doesn't run scripts in iframe if iframe.documentContent.designMode equals 'on' (GH-871)
-            if (DocumentSandbox._isDocumentInDesignMode(this))
-                ShadowUI.removeSelfRemovingScripts(this);
+            ShadowUI.removeSelfRemovingScripts(this);
 
             const result = nativeMethods.documentClose.apply(this, args);
 
@@ -319,7 +282,7 @@ export default class DocumentSandbox extends SandboxBase {
             },
         });
 
-        DocumentSandbox._definePropertyDescriptor(window.Document.prototype, window.HTMLDocument.prototype, 'referrer', referrerOverriddenDescriptor);
+        nativeMethods.objectDefineProperty(window.Document.prototype, 'referrer', referrerOverriddenDescriptor);
     }
 
     private overrideURL (window) {
@@ -330,7 +293,7 @@ export default class DocumentSandbox extends SandboxBase {
             },
         });
 
-        DocumentSandbox._definePropertyDescriptor(window.Document.prototype, window.HTMLDocument.prototype, 'URL', urlOverriddenDescriptor);
+        nativeMethods.objectDefineProperty(window.Document.prototype, 'URL', urlOverriddenDescriptor);
     }
 
     private overrideDomain (window) {
@@ -352,7 +315,7 @@ export default class DocumentSandbox extends SandboxBase {
             },
         });
 
-        DocumentSandbox._definePropertyDescriptor(domainPropertyOwner, htmlDocPrototype, 'domain', domainOverriddenDescriptor);
+        nativeMethods.objectDefineProperty(domainPropertyOwner, 'domain', domainOverriddenDescriptor);
     }
 
     private overrideStyleSheets (window) {

@@ -10,13 +10,11 @@ import { get as getStyle, set as setStyle } from '../utils/style';
 import { stopPropagation } from '../utils/event';
 import { getNativeQuerySelectorAll } from '../utils/query-selector';
 import HTMLCollectionWrapper from './node/live-node-list/html-collection-wrapper';
-import { getElementsByNameReturnsHTMLCollection } from '../utils/feature-detection';
-import { isIE, isChrome } from '../utils/browser';
+import { isChrome } from '../utils/browser';
 import { DocumentCleanedEvent } from '../../typings/client';
 import NodeMutation from './node/mutation';
 import MessageSandbox from './event/message';
 import IframeSandbox from './iframe';
-import IEDebugSandbox from './ie-debug';
 import removeElement from '../utils/remove-element';
 import { overrideFunction } from '../utils/overriding';
 
@@ -50,8 +48,7 @@ export default class ShadowUI extends SandboxBase {
 
     constructor (private readonly _nodeMutation: NodeMutation,
         private readonly _messageSandbox: MessageSandbox,
-        private readonly _iframeSandbox: IframeSandbox,
-        private readonly _ieDebugSandbox: IEDebugSandbox) {
+        private readonly _iframeSandbox: IframeSandbox) {
         super();
 
         this.root                    = null;
@@ -122,15 +119,6 @@ export default class ShadowUI extends SandboxBase {
 
             if (el)
                 filteredList.push(list[i]);
-        }
-
-        //HACK: Sometimes client scripts want to get StyleSheet by one's property 'id' and by index. Real StyleSheetList can provide this possibility.
-        //We can't create a new StyleSheetList or change current yet, so we need to create a fake StyleSheetList.
-        if (isIE && list instanceof StyleSheetList) {
-            for (const item of filteredList) {
-                if (item.id)
-                    nativeMethods.objectDefineProperty(filteredList, item.id, { get: () => item });
-            }
         }
 
         nativeMethods.objectDefineProperty(filteredList, 'item', {
@@ -323,9 +311,7 @@ export default class ShadowUI extends SandboxBase {
 
         overrideFunction(docProto, 'getElementsByName', function (this: Document, ...args: [string]) {
             const elements = nativeMethods.getElementsByName.apply(this, args);
-            const length   = getElementsByNameReturnsHTMLCollection
-                ? nativeMethods.htmlCollectionLengthGetter.call(elements)
-                : nativeMethods.nodeListLengthGetter.call(elements);
+            const length   = nativeMethods.nodeListLengthGetter.call(elements);
 
             return shadowUI._filterNodeList(elements, length);
         });
@@ -591,32 +577,12 @@ export default class ShadowUI extends SandboxBase {
         }
     }
 
-    // IE11 and Edge have a strange behavior: shadow container collection flag may be lost (GH-1763 and GH-2034)
-    private static _hasCollectionFlagForIE (obj: any, flag: string): boolean {
-        try {
-            if (flag in obj)
-                return obj[flag];
-
-            const parent = nativeMethods.nodeParentNodeGetter.call(obj[0]);
-            const result = domUtils.isHeadOrBodyElement(parent) || domUtils.isFormElement(parent);
-
-            nativeMethods.objectDefineProperty(obj, IS_SHADOW_CONTAINER_COLLECTION_FLAG, { value: result, configurable: true });
-
-            return result;
-        }
-        catch (e) {
-            return false;
-        }
-    }
-
     static isShadowContainer (el) {
         return ShadowUI._hasFlag(el, IS_SHADOW_CONTAINER_FLAG);
     }
 
-    static isShadowContainerCollection (collection, length?: number) {
-        return isIE && length
-            ? ShadowUI._hasCollectionFlagForIE(collection, IS_SHADOW_CONTAINER_COLLECTION_FLAG)
-            : ShadowUI._hasFlag(collection, IS_SHADOW_CONTAINER_COLLECTION_FLAG);
+    static isShadowContainerCollection (collection) {
+        return ShadowUI._hasFlag(collection, IS_SHADOW_CONTAINER_COLLECTION_FLAG);
     }
 
     static _isShadowUIChildListMutation (mutation: MutationRecord) {
@@ -679,7 +645,7 @@ export default class ShadowUI extends SandboxBase {
                 shadowUIElementCount++;
         }
 
-        if (shadowUIElementCount && !this._ieDebugSandbox.isDebuggerInitiator())
+        if (shadowUIElementCount)
             ShadowUI._checkElementsPosition(collection, length);
 
         return length - shadowUIElementCount;

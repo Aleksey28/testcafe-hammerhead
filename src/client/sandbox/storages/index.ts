@@ -170,12 +170,6 @@ class StorageSandboxProxyStrategy extends StorageSandboxStrategyBase implements 
     dispose () {
         this.localStorageProxy.unwrapProxy().removeChangeEventListener(this.localStorageChangeHandler);
         this.sessionStorageProxy.unwrapProxy().removeChangeEventListener(this.sessionStorageChangeHandler);
-
-        const topSameDomainWindow = getTopSameDomainWindow(this.window);
-
-        // NOTE: For removed iframe without src in IE11 window.top equals iframe's window
-        if (this.window === topSameDomainWindow && !topSameDomainWindow.frameElement)
-            nativeMethods.clearInterval.call(this.window, this.intervalId);
     }
 
     private static _wrapKey (key: string): string {
@@ -241,10 +235,6 @@ class StorageSandboxProxyStrategy extends StorageSandboxStrategyBase implements 
     }
 
     private _overrideStorageEvent () {
-        // NOTE: IE11 has the StorageEvent property, but it is not a constructor
-        if (typeof StorageEvent === 'object')
-            return;
-
         overrideConstructor(this.window, 'StorageEvent', function (this: Window, type: string, opts?: StorageEventInit) {
             const storedArea = opts?.storageArea;
 
@@ -339,19 +329,8 @@ class StorageSandboxProxyStrategy extends StorageSandboxStrategyBase implements 
     }
 
     private _overrideStoragesGetters () {
-        const storagesPropsOwner = this.nativeMethods.getStoragesPropsOwner(window);
-
-        // NOTE: Storage properties is located in Window.prototype in the IE11 and these are non configurable.
-        // We define descriptors from a prototype with an overridden getter on a window instance.
-        // We don't need define descriptors again if these was overridden.
-        const shouldDefineStorageProps = !this.nativeMethods.isStoragePropsLocatedInProto ||
-            !this.nativeMethods.objectHasOwnProperty.call(window, 'localStorage');
-
-        if (!shouldDefineStorageProps)
-            return;
-
         this.nativeMethods.objectDefineProperties(window, {
-            'localStorage': createOverriddenDescriptor(storagesPropsOwner, 'localStorage', {
+            'localStorage': createOverriddenDescriptor(window, 'localStorage', {
                 // @ts-ignore
                 getter: () => {
                     this.localStorageProxy.unwrapProxy().setContext(window);
@@ -360,7 +339,7 @@ class StorageSandboxProxyStrategy extends StorageSandboxStrategyBase implements 
                 },
             }),
 
-            'sessionStorage': createOverriddenDescriptor(storagesPropsOwner, 'sessionStorage', {
+            'sessionStorage': createOverriddenDescriptor(window, 'sessionStorage', {
                 // @ts-ignore
                 getter: () => {
                     this.sessionStorageProxy.unwrapProxy().setContext(window);

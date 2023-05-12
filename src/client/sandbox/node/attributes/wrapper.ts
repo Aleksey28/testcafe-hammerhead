@@ -1,5 +1,4 @@
 import fnBind from '../../../utils/fn-bind';
-import { attrGetNamedItemIsNotEnumerable } from '../../../utils/feature-detection';
 import { refreshAttributesWrapper, assignAttributes } from './index';
 
 const ATTRIBUTES_METHODS = ['setNamedItem', 'setNamedItemNS', 'removeNamedItem', 'removeNamedItemNS', 'getNamedItem', 'getNamedItemNS'];
@@ -29,8 +28,5 @@ export default class AttributesWrapper {
                     : fnBind(attributes[field], attributes);
             }
         }
-
-        if (attrGetNamedItemIsNotEnumerable)
-            this['getNamedItem'] = createMethodWrapper(el, attributes, 'getNamedItem');
     }
 }

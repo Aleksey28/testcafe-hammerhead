@@ -54,6 +54,7 @@ export default class StyleSandbox extends SandboxBase {
         // @ts-ignore
         features.css2PropertiesProtoContainsAllProps = !!window.CSS2Properties;
 
+        // TODO: Find out
         // NOTE: The CSSStyleDeclaration class contains not dashed url properties only in the IE
         features.cssStyleDeclarationProtoContainsUrlProps = this.nativeMethods.objectHasOwnProperty
             // @ts-ignore
