@@ -228,8 +228,11 @@ export default class MessageSandbox extends SandboxBase {
         const message         = MessageSandbox._wrapMessage(MessageType.Service, msg);
         const canSendDirectly = !isCrossDomainWindows(targetWindow, this.window) && !!targetWindow[this.RECEIVE_MSG_FN];
 
-        if (!canSendDirectly)
-            return MessageSandbox._isWindowAvailable(targetWindow) && targetWindow.postMessage(message, '*', ports);
+        if (!canSendDirectly) {
+            const origin = nativeMethods.windowOriginGetter.call(targetWindow);
+
+            return MessageSandbox._isWindowAvailable(targetWindow) && targetWindow.postMessage(message, origin, ports);
+        }
 
         const sendFunc = (force: boolean) => {
             if (force || this._removeInternalMsgFromQueue(sendFunc)) {
