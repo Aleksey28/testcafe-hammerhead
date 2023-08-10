@@ -15,7 +15,7 @@ import {
 
 import { ServerInfo } from '../typings/proxy';
 
-const URL_RE              = /^\s*([\w-]+?:)?(?:\/\/(?:([^/]+)@)?(([^/%?;#: ]*)(?::(\d+))?))?(.{0,100}?)\s{0,100}$/;
+const URL_RE              = /^\s*([\w-]+?:)?(?:\/\/(?:([^/]+)@)?(([^/%?;#: ]{0,100})(?::(\d+))?))?(.{0,100}?)\s{0,100}$/;
 const PROTOCOL_RE         = /^([\w-]+?:)(\/\/|[^\\/]|$)/;
 const QUERY_AND_HASH_RE   = /(\?.+|#[^#]*)$/;
 const PATH_AFTER_HOST_RE  = /^\/([^/]+?)\/([\S\s]+)$/;
